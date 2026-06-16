@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 
-const RATE_REG = 25;
-const RATE_3D  = 30;
+const HOURLY_RATE = 30;
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function toHMS(s) {
@@ -91,8 +90,7 @@ function parseTogglCSV(text) {
 // ── billing calc for one week ─────────────────────────────────────────────
 function weekBill(w) {
   if (!w) return 0;
-  return parseFloat(toDecimal(w.total3D)) * RATE_3D +
-         parseFloat(toDecimal(w.totalReg)) * RATE_REG;
+  return parseFloat(toDecimal(w.totalSecs)) * HOURLY_RATE;
 }
 
 // ── copy text ─────────────────────────────────────────────────────────────
@@ -107,10 +105,9 @@ function buildCopyText(weeks) {
     if (!w) return;
     const bill     = weekBill(w);
     const totalHrs = parseFloat(toDecimal(w.totalSecs));
-    const hrs3D    = parseFloat(toDecimal(w.total3D));
     L.push(`  Freelance Motion Design Support`);
     L.push(`  Week ${i+1}${w.label ? ` · ${w.label}` : ""}`);
-    L.push(`  ${totalHrs.toFixed(2)} hours (${hrs3D.toFixed(2)} hours of 3D)  →  ${toMoney(bill)}`);
+    L.push(`  ${totalHrs.toFixed(2)} hours at ${toMoney(HOURLY_RATE)}/hr  →  ${toMoney(bill)}`);
     L.push("");
   });
 
@@ -130,16 +127,13 @@ function buildCopyText(weeks) {
     L.push("");
   });
 
-  const tot3D  = weeks.reduce((s,w) => s+(w?.total3D  ||0), 0);
-  const totReg = weeks.reduce((s,w) => s+(w?.totalReg ||0), 0);
-  const bill3D  = parseFloat(toDecimal(tot3D))  * RATE_3D;
-  const billReg = parseFloat(toDecimal(totReg)) * RATE_REG;
+  const totalSecs = weeks.reduce((s,w) => s+(w?.totalSecs ||0), 0);
+  const bill = parseFloat(toDecimal(totalSecs)) * HOURLY_RATE;
   L.push("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   L.push("PERIOD TOTALS");
-  L.push(`  3D Hours:      ${toDecimal(tot3D)} hrs  (${toHMS(tot3D)})  →  ${toMoney(bill3D)}`);
-  L.push(`  Regular Hours: ${toDecimal(totReg)} hrs  (${toHMS(totReg)})  →  ${toMoney(billReg)}`);
-  L.push(`  Grand Total:   ${toDecimal(tot3D+totReg)} hrs  (${toHMS(tot3D+totReg)})`);
-  L.push(`\n  ► AMOUNT DUE: ${toMoney(bill3D+billReg)}`);
+  L.push(`  Billable Hours: ${toDecimal(totalSecs)} hrs  (${toHMS(totalSecs)})`);
+  L.push(`  Rate:           ${toMoney(HOURLY_RATE)}/hr`);
+  L.push(`\n  ► AMOUNT DUE: ${toMoney(bill)}`);
   return L.join("\n");
 }
 
@@ -209,7 +203,7 @@ function WeekUpload({ weekNum, data, onLoad, onClear }) {
               .sort((a,b)=>(b[1].secs3D+b[1].secsReg)-(a[1].secs3D+a[1].secsReg))
               .map(([proj, t]) => (
                 <div className="wu-proj" key={proj}>
-                  <span>{proj}{t.secs3D > 0 && t.secsReg === 0 ? <span className="tag3d"> 3D</span> : t.secs3D > 0 ? <span className="tag3d"> ({toHMS(t.secs3D)} 3D)</span> : null}</span>
+                  <span>{proj}</span>
                   <span>{toHMS(t.secs3D + t.secsReg)}</span>
                 </div>
               ))}
@@ -230,11 +224,8 @@ export default function App() {
   const [copied, setCopied] = useState(false);
 
   // Totals
-  const tot3D   = (week1?.total3D  || 0) + (week2?.total3D  || 0);
-  const totReg  = (week1?.totalReg || 0) + (week2?.totalReg || 0);
-  const bill3D  = parseFloat(toDecimal(tot3D))  * RATE_3D;
-  const billReg = parseFloat(toDecimal(totReg)) * RATE_REG;
-  const totalBill = bill3D + billReg;
+  const totalSecs = (week1?.totalSecs || 0) + (week2?.totalSecs || 0);
+  const totalBill = parseFloat(toDecimal(totalSecs)) * HOURLY_RATE;
   const hasAny = week1 || week2;
 
   function handleCopy() {
@@ -340,12 +331,11 @@ export default function App() {
             if (!w) return null;
             const bill     = weekBill(w);
             const totalHrs = parseFloat(toDecimal(w.totalSecs));
-            const hrs3D    = parseFloat(toDecimal(w.total3D));
             return (
               <div className="inv-line" key={i}>
                 <div className="inv-service">Freelance Motion Design Support</div>
                 <div className="inv-meta">Week {i+1}{w.label ? ` · ${w.label}` : ""}</div>
-                <div className="inv-meta">{totalHrs.toFixed(2)} hours ({hrs3D.toFixed(2)} hours of 3D)</div>
+                <div className="inv-meta">{totalHrs.toFixed(2)} hours at {toMoney(HOURLY_RATE)}/hr</div>
                 <div className="inv-amount">{toMoney(bill)}</div>
               </div>
             );
@@ -354,26 +344,16 @@ export default function App() {
           {/* Period totals */}
           <div className="sect">Period Totals</div>
           <div className="totrow">
-            <span className="totlbl">3D Hours</span>
+            <span className="totlbl">Billable Hours</span>
             <span className="totrr">
-              <span className="tothms">{toHMS(tot3D)}</span>
-              <span className="totv">{toDecimal(tot3D)} hrs</span>
-              <span className="totm">{toMoney(bill3D)}</span>
+              <span className="tothms">{toHMS(totalSecs)}</span>
+              <span className="totv">{toDecimal(totalSecs)} hrs</span>
             </span>
           </div>
           <div className="totrow">
-            <span className="totlbl">Regular Hours</span>
+            <span className="totlbl">Rate</span>
             <span className="totrr">
-              <span className="tothms">{toHMS(totReg)}</span>
-              <span className="totv">{toDecimal(totReg)} hrs</span>
-              <span className="totm">{toMoney(billReg)}</span>
-            </span>
-          </div>
-          <div className="totrow">
-            <span className="totlbl">Grand Total</span>
-            <span className="totrr">
-              <span className="tothms">{toHMS(tot3D+totReg)}</span>
-              <span className="totv">{toDecimal(tot3D+totReg)} hrs</span>
+              <span className="totm">{toMoney(HOURLY_RATE)}/hr</span>
             </span>
           </div>
 
@@ -385,7 +365,7 @@ export default function App() {
           <button className="cpbtn" onClick={handleCopy}>
             {copied ? "✓ Copied!" : "Copy Invoice + Spreadsheet Summary"}
           </button>
-          <p className="hint">${RATE_REG}/hr regular · ${RATE_3D}/hr 3D</p>
+          <p className="hint">${HOURLY_RATE}/hr</p>
         </div>
       )}
     </div>
